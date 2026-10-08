@@ -44,6 +44,14 @@ import { AdminDataView } from './components/AdminDataView';
 import { downloadJSONFile, exportToExcelXML } from './utils/exportUtils';
 import { buildStudentWhatsAppPayload } from './utils/whatsappUtils';
 import { WhatsAppPreviewModal, WhatsAppPayload } from './components/WhatsAppPreviewModal';
+import {
+  auth,
+  onAuthStateChanged,
+  signInWithGoogleFirebase,
+  signOutFirebase,
+  saveDatabaseToFirestore,
+  loadDatabaseFromFirestore,
+} from './firebase';
 
 const TOKEN_STORAGE_KEY = 'absensi_mi_session_token_v2';
 const LOCAL_DB_CACHE_KEY = 'absensi_mi_local_db_cache_v2';
@@ -128,6 +136,11 @@ export default function App() {
   // Header Quick Search
   const [headerSearch, setHeaderSearch] = useState('');
 
+  // Firebase Cloud Firestore State
+  const [firebaseEmail, setFirebaseEmail] = useState<string | null>(null);
+  const [firebaseSyncing, setFirebaseSyncing] = useState<boolean>(false);
+  const [lastFirebaseSync, setLastFirebaseSync] = useState<string | null>(null);
+
   // Toast Notification
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
@@ -137,6 +150,14 @@ export default function App() {
       setToast((prev) => (prev?.msg === msg ? null : prev));
     }, 3200);
   };
+
+  // Track Firebase Google Auth status
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      setFirebaseEmail(fbUser?.email || null);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Helper for authenticated API calls
   const apiFetch = async (url: string, options: RequestInit = {}) => {
@@ -158,7 +179,7 @@ export default function App() {
     return data;
   };
 
-  // Mirror full DB state to localStorage (when Admin or when non-empty) so data survives Cloud Run container restarts
+  // Mirror full DB state to localStorage and Firebase Cloud Firestore (when connected) so data survives across devices & restarts
   useEffect(() => {
     if (!db || !currentUser) return;
     if (currentUser.role === 'admin') {
@@ -174,9 +195,117 @@ export default function App() {
         } catch {
           // Ignore storage quota errors
         }
+        if (auth.currentUser) {
+          saveDatabaseToFirestore(db)
+            .then(() => {
+              const now = new Date();
+              setLastFirebaseSync(
+                `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+              );
+            })
+            .catch(() => {});
+        }
       }
     }
   }, [db, currentUser]);
+
+  const handleConnectFirebase = async () => {
+    setFirebaseSyncing(true);
+    try {
+      const fbUser = await signInWithGoogleFirebase();
+      setFirebaseEmail(fbUser.email || null);
+      if (db) {
+        // Check if cloud already has data when local is empty
+        const localEmpty =
+          db.students.length === 0 &&
+          db.attendance.length === 0 &&
+          db.settings.schoolName === 'MADRASAH IBTIDAIYAH';
+        if (localEmpty) {
+          const cloudData = await loadDatabaseFromFirestore(db);
+          if (cloudData && ((cloudData.students && cloudData.students.length > 0) || cloudData.settings)) {
+            const merged = { ...db, ...cloudData };
+            const res = await apiFetch('/api/restore', {
+              method: 'POST',
+              body: JSON.stringify({ data: merged }),
+            });
+            setDb(res.data);
+            showToast('Data madrasah berhasil dimuat dari Google Cloud Firestore');
+            return;
+          }
+        }
+        await saveDatabaseToFirestore(db);
+        const now = new Date();
+        setLastFirebaseSync(
+          `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        );
+      }
+      showToast(`Terhubung ke Firebase Cloud (${fbUser.email})`);
+    } catch (err: any) {
+      showToast(err.message || 'Gagal menghubungkan akun Google Firebase', 'error');
+    } finally {
+      setFirebaseSyncing(false);
+    }
+  };
+
+  const handleDisconnectFirebase = async () => {
+    setFirebaseSyncing(true);
+    try {
+      await signOutFirebase();
+      setFirebaseEmail(null);
+      showToast('Koneksi akun Google Cloud diputuskan');
+    } catch {
+      showToast('Gagal memutuskan koneksi Firebase', 'error');
+    } finally {
+      setFirebaseSyncing(false);
+    }
+  };
+
+  const handlePushToFirebase = async () => {
+    if (!db) return;
+    setFirebaseSyncing(true);
+    try {
+      await saveDatabaseToFirestore(db);
+      const now = new Date();
+      setLastFirebaseSync(
+        `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      );
+      showToast('Seluruh data madrasah berhasil disimpan ke Firebase Cloud Firestore');
+    } catch (err: any) {
+      showToast(err.message || 'Gagal menyimpan ke Firebase Cloud', 'error');
+    } finally {
+      setFirebaseSyncing(false);
+    }
+  };
+
+  const handlePullFromFirebase = async () => {
+    if (!db) return;
+    setFirebaseSyncing(true);
+    try {
+      const cloudData = await loadDatabaseFromFirestore(db);
+      if (!cloudData) {
+        showToast('Belum ada data tersimpan di Firebase Cloud Firestore', 'error');
+        return;
+      }
+      const merged = {
+        ...db,
+        ...cloudData,
+      };
+      const res = await apiFetch('/api/restore', {
+        method: 'POST',
+        body: JSON.stringify({ data: merged }),
+      });
+      setDb(res.data);
+      const now = new Date();
+      setLastFirebaseSync(
+        `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      );
+      showToast('Data terbaru berhasil dimuat dari Firebase Cloud Firestore');
+    } catch (err: any) {
+      showToast(err.message || 'Gagal memuat data dari Firebase Cloud', 'error');
+    } finally {
+      setFirebaseSyncing(false);
+    }
+  };
 
   // Helper to check if server DB was reset on container restart and auto-restore from browser cache
   const syncOrRecoverDatabase = async (serverData: AppDatabase, activeToken: string): Promise<AppDatabase> => {
@@ -1701,6 +1830,13 @@ export default function App() {
         }}
         onLogout={performCleanLogout}
         showToast={showToast}
+        firebaseEmail={firebaseEmail}
+        firebaseSyncing={firebaseSyncing}
+        lastFirebaseSync={lastFirebaseSync}
+        onConnectFirebase={handleConnectFirebase}
+        onDisconnectFirebase={handleDisconnectFirebase}
+        onPushToFirebase={handlePushToFirebase}
+        onPullFromFirebase={handlePullFromFirebase}
       />
 
       <StudentDetailModal

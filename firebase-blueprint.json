@@ -1,0 +1,132 @@
+{
+  "entities": {
+    "SchoolRecord": {
+      "title": "SchoolRecord",
+      "description": "Penyimpanan data terpusat administrasi dan kehadiran siswa Madrasah Ibtidaiyah (MI) pada Cloud Firestore.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identitas unik dokumen bagian data sekolah",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "section": {
+          "type": "string",
+          "description": "Kategori modul data sekolah (settings, classes, students, attendance, notes, bills, payments, admin_extra)",
+          "enum": [
+            "settings",
+            "classes",
+            "students",
+            "attendance",
+            "notes",
+            "bills",
+            "payments",
+            "admin_extra"
+          ],
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna Firebase Auth yang menyimpan pembaruan",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "schoolName": {
+          "type": "string",
+          "description": "Nama Madrasah Ibtidaiyah aktif",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "academicYear": {
+          "type": "string",
+          "description": "Tahun ajaran aktif madrasah",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "recordCount": {
+          "type": "number",
+          "description": "Jumlah item dalam dokumen bagian ini"
+        },
+        "records": {
+          "type": "array",
+          "description": "Daftar entitas terstruktur pada bagian ini"
+        },
+        "settingsData": {
+          "type": "object",
+          "description": "Objek konfigurasi profil dan pengaturan sekolah"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan dokumen pada server"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan terakhir dokumen pada server"
+        }
+      },
+      "required": [
+        "id",
+        "section",
+        "ownerId",
+        "schoolName",
+        "academicYear",
+        "recordCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Daftar UID administrator terverifikasi untuk Madrasah Ibtidaiyah.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "UID pengguna Firebase",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email Google terverifikasi",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "role": {
+          "type": "string",
+          "description": "Peran pengguna di madrasah",
+          "enum": ["admin", "kepala_sekolah", "wali_kelas", "guru_piket"],
+          "minLength": 4,
+          "maxLength": 32
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pendaftaran admin"
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/school_records/{recordId}": {
+      "schema": {
+        "$ref": "#/entities/SchoolRecord"
+      },
+      "description": "Menyimpan dokumen data madrasah per bagian (settings, classes, students, attendance, notes, bills, payments, admin_extra)."
+    },
+    "/admins/{adminId}": {
+      "schema": {
+        "$ref": "#/entities/AdminUser"
+      },
+      "description": "Menyimpan profil otorisasi administrator madrasah."
+    }
+  }
+}
