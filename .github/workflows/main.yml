@@ -2,60 +2,130 @@ name: Build React Web to APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      # 1. Checkout source code
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      # 2. Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
+          cache: npm
 
-      - name: Set up JDK 17
+      # 3. Setup Java
+      - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'temurin'
+          distribution: temurin
+          cache: gradle
 
-      # 1. Build React/Vite
-      - name: Install Dependencies & Build Web
+      # 4. Install dependencies
+      - name: Install Dependencies
         run: |
-          npm install --legacy-peer-deps || npm install --force
-          npx vite build || npm run build || true
+          npm install --legacy-peer-deps
 
-      # 2. Setup Cordova & Buka Akses Koneksi Internet
-      - name: Setup Cordova & Configure Network
+      # 5. Build React / Vite
+      - name: Build React Web
         run: |
-          npm install -g cordova
-          cordova create app com.absen.app AbsenApp
-          cd app
-          cordova platform add android
-          rm -rf www/*
-          
-          # Copy hasil build React ke Cordova
-          if [ -d "../dist" ]; then
-            cp -r ../dist/* www/
-          elif [ -d "../build" ]; then
-            cp -r ../build/* www/
+          npm run build
+
+      # 6. Check build output
+      - name: Check Web Build
+        run: |
+          if [ -d "dist" ]; then
+            echo "✅ Vite build ditemukan: dist/"
+            ls -lah dist
+          elif [ -d "build" ]; then
+            echo "✅ React build ditemukan: build/"
+            ls -lah build
           else
-            cp -r ../public/* www/ || true
+            echo "❌ Folder dist/ atau build/ tidak ditemukan"
+            exit 1
           fi
 
-          # Izinkan lalu lintas koneksi luar & HTTPS/Firebase
-          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="https" />\n    <preference name="Hostname" value="localhost" />' config.xml
-
-      # 3. Compile ke APK
-      - name: Build APK
+      # 7. Install Cordova
+      - name: Install Cordova
         run: |
-          cd app
-          cordova build android --no-telemetry
+          npm install -g cordova
 
+      # 8. Create Cordova project
+      - name: Create Cordova Project
+        run: |
+          cordova create app com.absen.app AbsenApp
+
+      # 9. Add Android platform
+      - name: Add Android Platform
+        working-directory: app
+        run: |
+          cordova platform add android
+
+      # 10. Copy React build into Cordova
+      - name: Copy React Build
+        run: |
+          rm -rf app/www/*
+          
+          if [ -d "dist" ]; then
+            cp -r dist/* app/www/
+          elif [ -d "build" ]; then
+            cp -r build/* app/www/
+          else
+            echo "❌ Build React tidak ditemukan"
+            exit 1
+          fi
+
+          echo "📱 Isi www:"
+          ls -lah app/www
+
+      # 11. Configure Cordova
+      - name: Configure Cordova
+        working-directory: app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("config.xml")
+          text = path.read_text()
+
+          additions = '''
+              <access origin="*" />
+              <allow-navigation href="*" />
+              <allow-intent href="http://*/*" />
+              <allow-intent href="https://*/*" />
+              <preference name="AndroidInsecureFileModeEnabled" value="true" />
+          '''
+
+          if '<access origin="*"' not in text:
+              text = text.replace('</widget>', additions + '\n</widget>')
+
+          path.write_text(text)
+          PY
+
+      # 12. Build APK
+      - name: Build Android APK
+        working-directory: app
+        run: |
+          cordova build android --debug --no-telemetry
+
+      # 13. Verify APK
+      - name: Find APK
+        run: |
+          echo "APK yang dihasilkan:"
+          find app/platforms/android -name "*.apk" -type f -print
+
+      # 14. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Absen-APK
           path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
