@@ -27,8 +27,8 @@ jobs:
           npm install --legacy-peer-deps || npm install --force
           npx vite build || npm run build || true
 
-      # Bungkus ke Cordova
-      - name: Setup Cordova & Copy Build Output
+      # Setup Cordova & Izinkan Akses Jaringan/Login
+      - name: Setup Cordova & Inject Network Permissions
         run: |
           npm install -g cordova
           cordova create app com.absen.app AbsenApp
@@ -36,7 +36,7 @@ jobs:
           cordova platform add android
           rm -rf www/*
           
-          # Cek folder hasil build React (dist/build) lalu copy
+          # Copy hasil build React
           if [ -d "../dist" ]; then
             cp -r ../dist/* www/
           elif [ -d "../build" ]; then
@@ -45,8 +45,8 @@ jobs:
             cp -r ../public/* www/ || true
           fi
 
-          # Navigasi & jaringan
-          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="http" />' config.xml
+          # Izinkan semua lalu lintas internet, login, dan Firebase/API
+          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="https" />\n    <preference name="Hostname" value="localhost" />' config.xml
 
       # Compile ke APK
       - name: Build APK
