@@ -21,23 +21,22 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Build React/Vite
+      # 1. Build React/Vite
       - name: Install Dependencies & Build Web
         run: |
           npm install --legacy-peer-deps || npm install --force
           npx vite build || npm run build || true
 
-      # Setup Cordova & Buka Akses Internet Total
-      - name: Setup Cordova & Add Network Permissions
+      # 2. Setup Cordova & Buka Akses Koneksi Internet
+      - name: Setup Cordova & Configure Network
         run: |
           npm install -g cordova
           cordova create app com.absen.app AbsenApp
           cd app
           cordova platform add android
-          cordova plugin add cordova-plugin-whitelist || true
           rm -rf www/*
           
-          # Copy hasil build React
+          # Copy hasil build React ke Cordova
           if [ -d "../dist" ]; then
             cp -r ../dist/* www/
           elif [ -d "../build" ]; then
@@ -46,14 +45,10 @@ jobs:
             cp -r ../public/* www/ || true
           fi
 
-          # Tambahkan izin Android Internet & Network Security Policy
-          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="https" />\n    <preference name="Hostname" value="localhost" />\n    <preference name="android-targetSdkVersion" value="33" />' config.xml
-          
-          # Force Android Manifest Izinkan Internet & Cleartext Traffic
-          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' platforms/android/app/src/main/AndroidManifest.xml
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' platforms/android/app/src/main/AndroidManifest.xml
+          # Izinkan lalu lintas koneksi luar & HTTPS/Firebase
+          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="https" />\n    <preference name="Hostname" value="localhost" />' config.xml
 
-      # Compile ke APK
+      # 3. Compile ke APK
       - name: Build APK
         run: |
           cd app
