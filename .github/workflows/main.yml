@@ -16,35 +16,28 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Cordova & Inject Config
+      - name: Install Node & Capacitor
         run: |
-          npm install -g cordova
-          cordova create app com.absen.app AbsenApp
-          cd app
-          cordova platform add android
-          rm -rf www/*
-          
-          # Copy seluruh file web ke folder www
-          rsync -av --exclude='app' --exclude='.git' --exclude='.github' ../ www/
-          
-          # Jika index.html tidak ada di root tapi ada file html lain, rename ke index.html
-          if [ ! -f www/index.html ]; then
-            FIRST_HTML=$(find www -maxdepth 1 -name "*.html" | head -n 1)
-            if [ -n "$FIRST_HTML" ]; then
-              mv "$FIRST_HTML" www/index.html
-            fi
-          fi
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init Absen com.absen.app --web-dir .
 
-          # Izinkan akses domain luar (CDNs/Google Fonts/Tailwind/Bootstrap)
-          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <preference name="Scheme" value="http" />' config.xml
+      - name: Add Android & Sync
+        run: |
+          npx cap add android
+          # Hapus folder github dari bundle android
+          rm -rf android/app/src/main/assets/public/.github
+          rm -rf android/app/src/main/assets/public/.git
+          npx cap sync android
 
       - name: Build APK
         run: |
-          cd app
-          cordova build android --no-telemetry
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Absen-APK
-          path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
