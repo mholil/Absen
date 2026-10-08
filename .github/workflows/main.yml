@@ -10,119 +10,110 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout source code
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
-          node-version: 24
-          cache: npm
+          node-version: 20
 
-      # 3. Setup Java
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: temurin
-          cache: gradle
+          distribution: 'temurin'
 
-      # 4. Install dependencies
+      - name: Show project files
+        run: |
+          echo "=== PROJECT ==="
+          ls -la
+          echo "=== PACKAGE ==="
+          if [ -f package.json ]; then
+            cat package.json
+          else
+            echo "ERROR: package.json tidak ditemukan!"
+            exit 1
+          fi
+
       - name: Install Dependencies
         run: |
           npm install --legacy-peer-deps
 
-      # 5. Build React / Vite
-      - name: Build React Web
+      - name: Build React
         run: |
           npm run build
 
-      # 6. Check build output
-      - name: Check Web Build
+      - name: Check Build
         run: |
           if [ -d "dist" ]; then
-            echo "✅ Vite build ditemukan: dist/"
+            echo "Build ditemukan di dist/"
             ls -lah dist
           elif [ -d "build" ]; then
-            echo "✅ React build ditemukan: build/"
+            echo "Build ditemukan di build/"
             ls -lah build
           else
-            echo "❌ Folder dist/ atau build/ tidak ditemukan"
+            echo "ERROR: dist/ atau build/ tidak ditemukan!"
             exit 1
           fi
 
-      # 7. Install Cordova
       - name: Install Cordova
         run: |
           npm install -g cordova
 
-      # 8. Create Cordova project
-      - name: Create Cordova Project
+      - name: Create Cordova App
         run: |
           cordova create app com.absen.app AbsenApp
 
-      # 9. Add Android platform
-      - name: Add Android Platform
+      - name: Add Android
         working-directory: app
         run: |
           cordova platform add android
 
-      # 10. Copy React build into Cordova
-      - name: Copy React Build
+      - name: Copy React to Cordova
         run: |
           rm -rf app/www/*
-          
+
           if [ -d "dist" ]; then
             cp -r dist/* app/www/
           elif [ -d "build" ]; then
             cp -r build/* app/www/
           else
-            echo "❌ Build React tidak ditemukan"
+            echo "Build React tidak ditemukan!"
             exit 1
           fi
 
-          echo "📱 Isi www:"
-          ls -lah app/www
-
-      # 11. Configure Cordova
-      - name: Configure Cordova
+      - name: Configure Network
         working-directory: app
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("config.xml")
-          text = path.read_text()
+          p = Path("config.xml")
+          s = p.read_text()
 
-          additions = '''
+          insert = '''
               <access origin="*" />
               <allow-navigation href="*" />
               <allow-intent href="http://*/*" />
               <allow-intent href="https://*/*" />
-              <preference name="AndroidInsecureFileModeEnabled" value="true" />
           '''
 
-          if '<access origin="*"' not in text:
-              text = text.replace('</widget>', additions + '\n</widget>')
+          if '<access origin="*"' not in s:
+              s = s.replace('</widget>', insert + '\n</widget>')
 
-          path.write_text(text)
+          p.write_text(s)
           PY
 
-      # 12. Build APK
-      - name: Build Android APK
+      - name: Build APK
         working-directory: app
         run: |
           cordova build android --debug --no-telemetry
 
-      # 13. Verify APK
-      - name: Find APK
+      - name: Check APK
         run: |
-          echo "APK yang dihasilkan:"
           find app/platforms/android -name "*.apk" -type f -print
 
-      # 14. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
