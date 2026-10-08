@@ -16,7 +16,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Cordova & Copy Files
+      - name: Setup Cordova & Inject Config
         run: |
           npm install -g cordova
           cordova create app com.absen.app AbsenApp
@@ -24,11 +24,19 @@ jobs:
           cordova platform add android
           rm -rf www/*
           
-          # Copy seluruh file project ke folder www
+          # Copy seluruh file web ke folder www
           rsync -av --exclude='app' --exclude='.git' --exclude='.github' ../ www/
           
-          # Izinkan navigasi lokal di Cordova config
-          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />' config.xml
+          # Jika index.html tidak ada di root tapi ada file html lain, rename ke index.html
+          if [ ! -f www/index.html ]; then
+            FIRST_HTML=$(find www -maxdepth 1 -name "*.html" | head -n 1)
+            if [ -n "$FIRST_HTML" ]; then
+              mv "$FIRST_HTML" www/index.html
+            fi
+          fi
+
+          # Izinkan akses domain luar (CDNs/Google Fonts/Tailwind/Bootstrap)
+          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <preference name="Scheme" value="http" />' config.xml
 
       - name: Build APK
         run: |
