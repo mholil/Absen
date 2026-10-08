@@ -16,22 +16,33 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Clone Web2App Template
+      - name: Setup Cordova Project
         run: |
-          git clone https://github.com/anthonyneor/Android-WebView-App.git app_builder
-          rm -rf app_builder/app/src/main/assets/*
+          npm install -g cordova
+          cordova create app com.absen.app AbsenApp
+          cd app
+          cordova platform add android
+          rm -rf www/*
           
-          # Copy seluruh isi web kamu ke dalam folder assets WebView
-          rsync -av --exclude='app_builder' --exclude='.git' --exclude='.github' ./ app_builder/app/src/main/assets/
+          # Copy file web ke folder www
+          cp -r ../* www/ || true
+          rm -rf www/app
+          
+          # Fix jika file bernama Index.html (kapital)
+          if [ -f www/Index.html ]; then
+            mv www/Index.html www/index.html
+          fi
+
+          # Izinkan akses jaringan/CDN & navigasi lokal
+          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="http" />' config.xml
 
       - name: Build APK
         run: |
-          cd app_builder
-          chmod +x gradlew
-          ./gradlew assembleDebug
+          cd app
+          cordova build android --no-telemetry
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Absen-APK
-          path: app_builder/app/build/outputs/apk/debug/app-debug.apk
+          path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
