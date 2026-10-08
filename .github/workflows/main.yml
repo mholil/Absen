@@ -27,13 +27,14 @@ jobs:
           npm install --legacy-peer-deps || npm install --force
           npx vite build || npm run build || true
 
-      # Setup Cordova & Izinkan Akses Jaringan/Login
-      - name: Setup Cordova & Inject Network Permissions
+      # Setup Cordova & Buka Akses Internet Total
+      - name: Setup Cordova & Add Network Permissions
         run: |
           npm install -g cordova
           cordova create app com.absen.app AbsenApp
           cd app
           cordova platform add android
+          cordova plugin add cordova-plugin-whitelist || true
           rm -rf www/*
           
           # Copy hasil build React
@@ -45,8 +46,12 @@ jobs:
             cp -r ../public/* www/ || true
           fi
 
-          # Izinkan semua lalu lintas internet, login, dan Firebase/API
-          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="https" />\n    <preference name="Hostname" value="localhost" />' config.xml
+          # Tambahkan izin Android Internet & Network Security Policy
+          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="https" />\n    <preference name="Hostname" value="localhost" />\n    <preference name="android-targetSdkVersion" value="33" />' config.xml
+          
+          # Force Android Manifest Izinkan Internet & Cleartext Traffic
+          sed -i 's/<application/<application android:usesCleartextTraffic="true"/' platforms/android/app/src/main/AndroidManifest.xml
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' platforms/android/app/src/main/AndroidManifest.xml
 
       # Compile ke APK
       - name: Build APK
