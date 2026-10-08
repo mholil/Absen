@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Web to APK
 
 on:
   push:
@@ -9,12 +9,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
         with:
-          channel: 'stable'
-      - run: flutter pub get
-      - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Cordova
+        run: |
+          npm install -g cordova
+          cordova create app com.absen.app AbsenApp
+          cd app
+          cordova platform add android
+          rm -rf www/*
+          cp -r ../* www/ || true
+          rm -rf www/app
+
+      - name: Build APK
+        run: |
+          cd app
+          cordova build android --no-telemetry
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: Absen-APK
+          path: app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
