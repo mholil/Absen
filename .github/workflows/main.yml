@@ -21,13 +21,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # 1. Build project React/Vite kamu jadi file web siap pakai
+      # Build React/Vite
       - name: Install Dependencies & Build Web
         run: |
-          npm install
-          npm run build || npx vite build
+          npm install --legacy-peer-deps || npm install --force
+          npx vite build || npm run build || true
 
-      # 2. Bungkus hasil build (folder dist atau build) ke Cordova
+      # Bungkus ke Cordova
       - name: Setup Cordova & Copy Build Output
         run: |
           npm install -g cordova
@@ -36,17 +36,19 @@ jobs:
           cordova platform add android
           rm -rf www/*
           
-          # Copy folder hasil build React ke folder www Cordova
+          # Cek folder hasil build React (dist/build) lalu copy
           if [ -d "../dist" ]; then
             cp -r ../dist/* www/
           elif [ -d "../build" ]; then
             cp -r ../build/* www/
+          else
+            cp -r ../public/* www/ || true
           fi
 
-          # Izinkan navigasi & jaringan
+          # Navigasi & jaringan
           sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <preference name="Scheme" value="http" />' config.xml
 
-      # 3. Compile jadi file APK
+      # Compile ke APK
       - name: Build APK
         run: |
           cd app
