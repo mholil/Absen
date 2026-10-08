@@ -16,15 +16,19 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Cordova
+      - name: Setup Cordova & Copy Files
         run: |
           npm install -g cordova
           cordova create app com.absen.app AbsenApp
           cd app
           cordova platform add android
           rm -rf www/*
-          cp -r ../* www/ || true
-          rm -rf www/app
+          
+          # Copy seluruh file project ke folder www
+          rsync -av --exclude='app' --exclude='.git' --exclude='.github' ../ www/
+          
+          # Izinkan navigasi lokal di Cordova config
+          sed -i '/<\/widget>/i \    <access origin="*" />\n    <allow-navigation href="*" />' config.xml
 
       - name: Build APK
         run: |
