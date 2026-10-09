@@ -55,7 +55,12 @@ import {
 
 const TOKEN_STORAGE_KEY = 'absensi_mi_session_token_v2';
 const LOCAL_DB_CACHE_KEY = 'absensi_mi_local_db_cache_v2';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  'https://ais-pre-l5rfy7oyd4rag7mans7rat-423940994544.asia-east1.run.app';
 
+const apiUrl = (path: string) =>
+  `${API_BASE_URL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 // Helper component for circular donut progress (Jobie style)
 const DonutRing: React.FC<{ percentage: number; color: string; label: string }> = ({
   percentage,
